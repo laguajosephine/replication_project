@@ -17,16 +17,13 @@ drop if everimmig == 0
 
 keep child0 nchild fertyr eligible eligiblepost ageyr yrimmig age ageimmig statefip noncitizen post year_elig year
 
-
 * Second data base: YRBSS records
 use "daca_yrbss.dta"
 
 drop if sexact == .
-
 drop weight highhispelig
 
-
-
+clear
 * Replicate Figure 1
 use "daca_acs_clean.dta"
 
@@ -36,10 +33,33 @@ bys year noncitizen, sort: egen rate = mean(child0)
 tw (line rate year if noncitizen == 0, lpattern(dash) lcolor(black)) (line rate year if noncitizen == 1, lcolor(black)), ///
    ytitle("Share of 15-20 with No Children") ///
    xtitle("Year") ///
-   yscale(r(.84 .94)) ///
    legend(order(1 "Hispanic Immig. Citizens" 2 "Hispanic Immig. Non-Citizens"))
  
 * Things to do: find the restriction in order to have the same graph. Hypothesis :
 * there is a restriction in the data that we didn't find. Idea: look at the 
 * sample size in the regressions.
+
+
+* Replicate Table 1
+keep if yrimmig <= 2007
+keep if ageimmig <= 10
+
+* not detrended 
+  
+regress fertyr eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
+estimates store rg1
+
+regress child0 eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
+estimates store rg2
+
+regress nchild eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
+estimates store rg3
+
+estout rg1tris rg2tris rg3tris, cells(b(star fmt(3)) se(par fmt(2)))   ///
+   legend label varlabels(_cons constant)               ///
+   stats(r2 df_r bic, fmt(3 0 1) label(R-sqr dfres BIC))
+   
+
+
+* on-detrended data
 
