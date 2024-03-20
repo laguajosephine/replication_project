@@ -1,1 +1,45 @@
+* REPLICATION PROJECT
+cd "/Users/josephinelaguardia/Desktop/micro_x/paper to replicate"
+
+* First data base: ACS records
+use "daca_acs.dta"
+
+* We need to keep only immigrant individuals, thus when everimmig = 1. Then, we 
+* won't need this variable anymore.
+
+drop if everimmig == 0
+
+* Variables of interest : fertility outcomes => child0 nchild fertyr
+* Variables of interest : regressors => eligible eligiblepost 
+* Variables of interest : control variables => ageyr yrimmig age
+* Variables of interest : fixed effects => ageimmig statefip 
+* other variables to keep : noncitizen post year_elig
+
+keep child0 nchild fertyr eligible eligiblepost ageyr yrimmig age ageimmig statefip noncitizen post year_elig year
+
+
+* Second data base: YRBSS records
+use "daca_yrbss.dta"
+
+drop if sexact == .
+
+drop weight highhispelig
+
+
+
+* Replicate Figure 1
+use "daca_acs_clean.dta"
+
+* coding the share of hispanic youth with no children
+
+bys year noncitizen, sort: egen rate = mean(child0)
+tw (line rate year if noncitizen == 0, lpattern(dash) lcolor(black)) (line rate year if noncitizen == 1, lcolor(black)), ///
+   ytitle("Share of 15-20 with No Children") ///
+   xtitle("Year") ///
+   yscale(r(.84 .94)) ///
+   legend(order(1 "Hispanic Immig. Citizens" 2 "Hispanic Immig. Non-Citizens"))
+ 
+* Things to do: find the restriction in order to have the same graph. Hypothesis :
+* there is a restriction in the data that we didn't find. Idea: look at the 
+* sample size in the regressions.
 
