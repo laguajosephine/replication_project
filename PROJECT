@@ -46,7 +46,7 @@ keep if ageimmig <= 10
 
 * not detrended 
   
-regress fertyr eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
+egress fertyr eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
 estimates store rg1
 
 regress child0 eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
@@ -54,11 +54,8 @@ estimates store rg2
 
 regress nchild eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
 estimates store rg3
-
-estout rg1tris rg2tris rg3tris, cells(b(star fmt(3)) se(par fmt(2)))   ///
-   legend label varlabels(_cons constant)               ///
-   stats(r2 df_r bic, fmt(3 0 1) label(R-sqr dfres BIC))
    
+esttab rg1 rg2 rg3, cells(b(star fmt(3)) (se(par fmt(2)))) keep(eligiblepost)
 
 
 * on-detrended data
