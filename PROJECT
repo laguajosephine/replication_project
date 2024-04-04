@@ -124,4 +124,31 @@ esttab s* using "table2.tex", scalars(Mean N) keep(highhispeligpost) cells(b(sta
 title("Table 2: Effect of DACA on pregnancy prevention and sexual behavior")
 
 * ---- ADDITIONAL ANALYSIS -------
+* checking for parallel trend assumption : placebo test
+
+clear
+use "daca_acs.dta"
+keep if yrimmig <= 2007
+keep if ageimmig <= 10
+keep if everimmig == 1
+
+* placebo year = 2010
+gen post2 = 0
+replace post2 = 1 if year > 2009
+
+gen eligiblepost2 = eligible*post2
+
+* regressions
+local i = 1
+foreach y of varlist fertyr child0 nchild {
+	qui reg `y' eligible eligiblepost2 ageyr yrimmig c.year##statefip c.ageimmig##eligible [aweight=perwt]
+	qui summ `y' if eligible==1 & `y' !=.
+	estadd scalar Mean = r(mean)
+	estimates store t`i'
+	local i = `i' + 1
+}
+
+esttab t*, scalars(Mean N) keep(eligiblepost2) cells(b(star fmt(3)) (se(par fmt(3))))
+
+esttab t* using "placebotest.tex", scalars(Mean N) keep(eligiblepost2) cells(b(star fmt(3)) (se(par fmt(3)))) 
 
