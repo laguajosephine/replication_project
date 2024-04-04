@@ -1,102 +1,127 @@
-* REPLICATION PROJECT
+* ----------- REPLICATION PROJECT ----------
 cd "/Users/josephinelaguardia/Desktop/micro_x/paper to replicate"
 
-* First data base: ACS records
+* ----------- DESCRIPTIVE STATISTICS --------
+
+* Number of citizens and non-citizens immigrants over the years
 use "daca_acs.dta"
 
-* We need to keep only immigrant individuals, thus when everimmig = 1. Then, we 
-* won't need this variable anymore.
-
-drop if everimmig == 0
-
-* Variables of interest : fertility outcomes => child0 nchild fertyr
-* Variables of interest : regressors => eligible eligiblepost 
-* Variables of interest : control variables => ageyr yrimmig age
-* Variables of interest : fixed effects => ageimmig statefip 
-* other variables to keep : noncitizen post year_elig
-
-keep child0 nchild fertyr eligible eligiblepost ageyr yrimmig age ageimmig statefip noncitizen post year_elig year
-
-* Second data base: YRBSS records
-use "daca_yrbss.dta"
-
-drop if sexact == .
-drop weight highhispelig
+keep if everimmig == 1
+graph bar (count), over(noncitizen) by(year) ///
+ylabel(, angle(0))
 
 clear
-* Replicate Figure 1
-use "daca_acs_clean.dta"
 
-* coding the share of hispanic youth with no children
+* Mean number of children for teenage mothers
+use "daca_acs.dta"
+keep if everimmig == 1
 
-bys year noncitizen, sort: egen rate = mean(child0)
-tw (line rate year if noncitizen == 0, lpattern(dash) lcolor(black)) (line rate year if noncitizen == 1, lcolor(black)), ///
-   ytitle("Share of 15-20 with No Children") ///
-   xtitle("Year") ///
-   legend(order(1 "Hispanic Immig. Citizens" 2 "Hispanic Immig. Non-Citizens"))
+* when we compute the mean of nchild while keeping the childless individuals
+gr hbar nchild, over(noncitizen) over(year) ylabel(0(0.5)2)
+* we can observe a significant gap between citizen and non-citizen immigrants
+
+*but when we compute the same mean and dropping the childless observations 
+keep if nchild != 0
+gr hbar nchild, over(noncitizen) over(year)
+* surprisingly, the gap is now almost non-existant for all years. We can thus 
+* make an early assumption that DACA might impact individuals on the margin 
+* of their first birth.
+
+
+* Replication of Figure 1: share of childless teenagers
+use "daca_acs.dta"
+
+* Let's compute the mean of "child0" for each year, differentiating between
+* citizens and non citizens, and between Immigrants and Non-Immigrants.
+
+collapse child0 [aweight=perwt], by(everimmig noncitizen year)
+* Here [aweight = perwt] is the sampling weight. If wen don't use that weight
+* we find completely different results.
+
+gr tw  ///
+	line child0 year if everimmig==1 & noncitizen ==0,  lcolor(black) lp(dash) || ///
+	line child0 year if everimmig==1 & noncitizen ==1,  lcolor(black) lp(solid) ///
+	legend(order(1 "Hispanic Immig. Citizens" 2 "Hispanic Immig. Non-Citizens")) ///
+	xtitle("Year") ///
+	ytitle("Share of 15-20 with No Children")
  
-* Things to do: find the restriction in order to have the same graph. Hypothesis :
-* there is a restriction in the data that we didn't find. Idea: look at the 
-* sample size in the regressions.
 
-
-* Replicate Table 1
+* ------------- REPLICATION :  TABLE 1 -------
+clear
+use "daca_acs.dta"
 keep if yrimmig <= 2007
 keep if ageimmig <= 10
+keep if everimmig == 1
 
+
+* PANEL A: with past trend controls
+* detrending
+
+foreach y of varlist fertyr child0 nchild {
+	qui xi: reg `y' eligible year_elig year_nonelig if year < 2012 [aweight=perwt]
+	predict `y'_d, residuals
+}
+
+* regression on detrended data
+
+local n = 1
+foreach y of varlist fertyr_d child0_d nchild_d {
+	reg `y' eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible [aweight=perwt]
+	estimates store d`n'
+	local n = `n' + 1
+}
+
+esttab d1 d2 d3 using "model1.tex", scalars(N) keep(eligiblepost) cells(b(star fmt(3)) (se(par fmt(3)))) ///
+title("Table 1 : Effect of DACA on Teenage Fertility")
+
+* PANEL B: without past trend controls
 * not detrended 
-  
-egress fertyr eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
-estimates store rg1
 
-regress child0 eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
-estimates store rg2
+local i = 1
+foreach y of varlist fertyr child0 nchild {
+	qui reg `y' eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible [aweight=perwt]
+	qui summ `y' if eligible==1 & `y' !=.
+	estadd scalar Mean = r(mean)
+	estimates store m`i'
+	local i = `i' + 1
+}
 
-regress nchild eligible eligiblepost ageyr yrimmig c.year##statefip c.ageimmig##eligible
-estimates store rg3
-   
-esttab rg1 rg2 rg3, cells(b(star fmt(3)) (se(par fmt(2)))) keep(eligiblepost)
+esttab m*, scalars(Mean N) keep(eligiblepost) cells(b(star fmt(3)) (se(par fmt(3))))
+
+* export the table 
+
+esttab m* using "models.tex", ///
+scalars(Mean N) keep(eligiblepost) cells(b(star fmt(3)) (se(par fmt(3))))
+ 
+* ----------- REPLICATION : TABLE 2 -------------
+clear
+use "daca_yrbss.dta"
+
+* detrending
+* create necessary variables, from the previous repliaction
+gen year_elig = year*highhispelig
+
+gen non_elig = 1
+replace non_elig = 0 if highhispelig == 1
+
+gen year_nonelig = year*non_elig
+
+foreach x of varlist noprot pill condom iudshot withd eversex sexact {
+		qui xi: reg `x' highhispelig  year_elig year_nonelig if year<2012 [aweight=weight]
+		predict `x'_d, residuals
+	}	
+
+* regression
+
+foreach x of varlist noprot_d pill_d condom_d iudshot_d withd_d eversex_d sexact_d {
+	qui xi: eststo s`x': reg `x' highhispeligpost i.statefip i.year [aweight=weight]
+	summ `y' if year <= 2012 
+	estadd scalar Mean = r(mean) 
+}
 
 
-* on-detrended data
-*create dummy variables for the years
+esttab s* using "table2.tex", scalars(Mean N) keep(highhispeligpost) cells(b(star fmt(3)) (se(par fmt(3)))) ///
+title("Table 2: Effect of DACA on pregnancy prevention and sexual behavior")
 
-gen d05 = 0 
-replace d05 = 1 if year == 2005
+* ---- ADDITIONAL ANALYSIS -------
 
-gen d06 = 0 
-replace d06 = 1 if year == 2006
-
-gen d07 = 0 
-replace d07 = 1 if year == 2007
-
-gen d08 = 0 
-replace d08 = 1 if year == 2008
-
-gen d09 = 0 
-replace d09 = 1 if year == 2009
-
-gen d10 = 0 
-replace d10 = 1 if year == 2010
-
-gen d11 = 0 
-replace d11 = 1 if year == 2011
-
-gen d12 = 0 
-replace d12 = 1 if year == 2012
-
-gen d13 = 0 
-replace d13 = 1 if year == 2013
-
-gen d14 = 0 
-replace d14 = 1 if year == 2014
-
-gen d15 = 0 
-replace d15 = 1 if year == 2015
-
-* regress with dummy variables 
-
-regress eligiblepost d05 d06 d07 d08 d09 d10 d11 d12 d13 d14 d15 
-predict res, resid
-
-regress fertyr res 
